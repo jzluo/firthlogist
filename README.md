@@ -4,6 +4,9 @@ A Python implementation of Logistic Regression with Firth's bias reduction.
 
 WIP!
 
+## Installation
+    pip install firthlogist
+
 ## Usage
 firthlogist follows the sklearn API.
 
