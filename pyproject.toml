@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "firthlogist"
+version = "0.0.1"
+description = "Python implementation of Logistic Regression with Firth's bias reduction"
+authors = ["Jon Luo <jzluo@alumni.cmu.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.11"
+numpy = "^1.22.4"
+scikit-learn = "^1.1.1"
+pytest = "^7.1.2"
+pandas = "^1.4.2"
+
+[tool.poetry.dev-dependencies]
+
+[tool.isort]
+profile = "black"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
