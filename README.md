@@ -1,5 +1,7 @@
 # firthlogist
 
+[![PyPI](https://img.shields.io/pypi/v/firthlogist.svg)](https://pypi.org/project/firthlogist/)
+
 A Python implementation of Logistic Regression with Firth's bias reduction.
 
 WIP!
