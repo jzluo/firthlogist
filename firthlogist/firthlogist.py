@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+from scipy.linalg import lapack
 from scipy.special import expit
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import ConvergenceWarning
@@ -184,6 +185,8 @@ def _get_XW(X, preds):
 
 def _hat_diag(XW):
     # Get diagonal elements of the hat matrix
-    Q = np.linalg.qr(XW, mode="reduced")[0]
+    # Q = np.linalg.qr(XW, mode="reduced")[0]
+    qr, tau, _, _ = lapack.dgeqrf(XW)
+    Q, _, _ = lapack.dorgqr(qr, tau)
     hat = np.einsum("ij,ij->i", Q, Q)
     return hat
