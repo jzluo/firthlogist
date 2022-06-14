@@ -93,9 +93,11 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         if self.fit_intercept:
             X = np.hstack((X, np.ones((X.shape[0], 1))))
 
-        self.coef_, self.n_iter_ = _firth_newton_raphson(
+        self.coef_, self.loglik_, self.n_iter_ = _firth_newton_raphson(
             X, y, self.max_iter, self.max_stepsize, self.max_halfstep, self.tol
         )
+
+        self.bse_ = _bse(X, self.coef_)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
@@ -157,16 +159,16 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
             if steps == max_halfstep:
                 warning_msg = "Step-halving failed to converge."
                 warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-                return coef_new, iter
+                return coef_new, -loglike_new, iter
 
         if iter > 1 and np.linalg.norm(coef_new - coef) < tol:
-            return coef_new, iter
+            return coef_new, -loglike_new, iter
 
         coef += step_size
 
     warning_msg = "Firth logistic regression failed to converge."
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-    return coef, max_iter
+    return coef, -loglike_new, max_iter
 
 
 def _loglikelihood(X, y, preds):
@@ -190,3 +192,13 @@ def _hat_diag(XW):
     Q, _, _ = lapack.dorgqr(qr, tau)
     hat = np.einsum("ij,ij->i", Q, Q)
     return hat
+
+
+def _bse(X, coefs):
+    # se in logistf is diag(object$var) ^ 0.5, where var is the covariance matrix,
+    # which is the inverse of the observed fisher information matrix
+    # https://stats.stackexchange.com/questions/68080/basic-question-about-fisher-information-matrix-and-relationship-to-hessian-and-s
+    preds = expit(X @ coefs)
+    XW = _get_XW(X, preds)
+    fisher_info_mtx = XW.T @ XW
+    return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
