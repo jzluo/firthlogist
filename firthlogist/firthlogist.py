@@ -99,6 +99,22 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         )
 
         self.bse_ = _bse(X, self.coef_)
+
+        # penalized likelihood ratio tests
+        pvals = []
+        for mask in range(1, self.coef_.shape[0] + 1):
+            _, null_loglik, _ = _firth_newton_raphson(
+                X,
+                y,
+                self.max_iter,
+                self.max_stepsize,
+                self.max_halfstep,
+                self.tol,
+                mask,
+            )
+            pvals.append(_lrt(self.loglik_, null_loglik))
+        self.pvals_ = np.array(pvals)
+
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
             self.coef_ = self.coef_[:-1]
@@ -134,9 +150,6 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=
     coef = np.zeros(X.shape[1])
     for iter in range(1, max_iter + 1):
         preds = expit(X @ coef)
-
-        # is this equivalent?
-        # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
         XW = _get_XW(X, preds, mask)
 
         fisher_info_mtx = XW.T @ XW
@@ -187,6 +200,9 @@ def _get_XW(X, preds, mask=None):
     # mask is 1-indexed because 0 == None
     rootW = np.sqrt(preds * (1 - preds))
     XW = rootW[:, np.newaxis] * X
+
+    # is this equivalent??
+    # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
     if mask:
         XW[:, mask - 1] = 0
     return XW
@@ -211,12 +227,8 @@ def _bse(X, coefs):
     return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
 
 
-def _lrt(full_loglik, X, y):
+def _lrt(full_loglik, null_loglik):
     # in logistf: 1-pchisq(2*(fit.full$loglik-fit.i$loglik),1)
-    p_vals = []
-    for mask in range(1, X.shape[1] + 1):
-        b, null_loglik, niter = _firth_newton_raphson(X, y, 25, 5, 1000, 0.0001, mask)
-        lr_stat = 2 * (full_loglik - null_loglik)
-        p_value = chi2.sf(lr_stat, df=1)
-        p_vals.append(p_value)
-    return p_vals
+    lr_stat = 2 * (full_loglik - null_loglik)
+    p_value = chi2.sf(lr_stat, df=1)
+    return p_value
