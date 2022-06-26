@@ -14,9 +14,12 @@ firthlogist follows the sklearn API.
 
 ```python
 from firthlogist import FirthLogisticRegression
+
 firth = FirthLogisticRegression()
 firth.fit(X, y)
 coefs = firth.coef_
+pvals = firth.pvals_
+bse = firth.bse_
 ```
 
 ## References
