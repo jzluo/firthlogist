@@ -34,6 +34,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
 
     Attributes
     ----------
+    bse_
+        Standard errors of the coefficients.
     classes_
         A list of the class labels.
     coef_
@@ -42,6 +44,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Fitted intercept. If `fit_intercept = False`, the intercept is set to zero.
     n_iter_
         Number of Newton-Raphson iterations performed.
+    pvals_
+        p-values calculated by penalized likelihood ratio tests.
 
     References
     ----------
