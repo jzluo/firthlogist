@@ -81,6 +81,11 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
                 f"Maximum number of iterations must be positive; "
                 f"got max_iter={self.max_iter}"
             )
+        if self.max_halfstep < 0:
+            raise ValueError(
+                f"Maximum number of step-halvings must >= 0; "
+                f"got max_halfstep={self.max_iter}"
+            )
         if self.tol < 0:
             raise ValueError(
                 f"Tolerance for stopping criteria must be positive; got tol={self.tol}"
@@ -109,6 +114,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         # penalized likelihood ratio tests
         if not self.skip_lrt:
             pvals = []
+            # mask is 1-indexed because of `if mask` check in _get_XW()
             for mask in range(1, self.coef_.shape[0] + 1):
                 _, null_loglik, _ = _firth_newton_raphson(
                     X,
