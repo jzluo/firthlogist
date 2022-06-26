@@ -129,16 +129,22 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         return proba
 
 
-def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
+def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=None):
     # see logistf reference manual for explanation of procedure
     coef = np.zeros(X.shape[1])
     for iter in range(1, max_iter + 1):
         preds = expit(X @ coef)
-        XW = _get_XW(X, preds)
+
+        # is this equivalent?
+        # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
+        XW = _get_XW(X, preds, mask)
+
         fisher_info_mtx = XW.T @ XW
         hat = _hat_diag(XW)
         U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
         step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
+        # if mask:
+        #     step_size[mask] = 0
 
         # step-halving
         mx = np.max(np.abs(step_size)) / max_stepsize
@@ -177,9 +183,12 @@ def _loglikelihood(X, y, preds):
     return -1 * (np.sum(y * np.log(preds) + (1 - y) * np.log(1 - preds)) + penalty)
 
 
-def _get_XW(X, preds):
+def _get_XW(X, preds, mask=None):
+    # mask is 1-indexed because 0 == None
     rootW = np.sqrt(preds * (1 - preds))
     XW = rootW[:, np.newaxis] * X
+    if mask:
+        XW[:, mask - 1] = 0
     return XW
 
 
@@ -204,9 +213,10 @@ def _bse(X, coefs):
 
 def _lrt(full_loglik, X, y):
     # in logistf: 1-pchisq(2*(fit.full$loglik-fit.i$loglik),1)
-    b, null_loglik, niter = _firth_newton_raphson(X, y, 25, 5, 1000, 0.0001)
-    lr_stat = 2 * (full_loglik - null_loglik)
-    p_value = chi2.sf(lr_stat, df=1)
-    # print(full_loglik, null_loglik, p_value, niter)
-    # print(b)
-    return p_value
+    p_vals = []
+    for mask in range(1, X.shape[1] + 1):
+        b, null_loglik, niter = _firth_newton_raphson(X, y, 25, 5, 1000, 0.0001, mask)
+        lr_stat = 2 * (full_loglik - null_loglik)
+        p_value = chi2.sf(lr_stat, df=1)
+        p_vals.append(p_value)
+    return p_vals
