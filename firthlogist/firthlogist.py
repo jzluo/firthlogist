@@ -31,6 +31,9 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
+    skip_lrt
+        If True, p-values will not be calculated. Calculating the p-values can be
+        expensive since the fitting procedure is repeated for each coefficient.
 
     Attributes
     ----------
