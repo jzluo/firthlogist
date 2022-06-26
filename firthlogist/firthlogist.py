@@ -63,12 +63,14 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
+        skip_lrt=False,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
         self.max_halfstep = max_halfstep
         self.tol = tol
         self.fit_intercept = fit_intercept
+        self.skip_lrt = skip_lrt
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -105,19 +107,20 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.bse_ = _bse(X, self.coef_)
 
         # penalized likelihood ratio tests
-        pvals = []
-        for mask in range(1, self.coef_.shape[0] + 1):
-            _, null_loglik, _ = _firth_newton_raphson(
-                X,
-                y,
-                self.max_iter,
-                self.max_stepsize,
-                self.max_halfstep,
-                self.tol,
-                mask,
-            )
-            pvals.append(_lrt(self.loglik_, null_loglik))
-        self.pvals_ = np.array(pvals)
+        if not self.skip_lrt:
+            pvals = []
+            for mask in range(1, self.coef_.shape[0] + 1):
+                _, null_loglik, _ = _firth_newton_raphson(
+                    X,
+                    y,
+                    self.max_iter,
+                    self.max_stepsize,
+                    self.max_halfstep,
+                    self.tol,
+                    mask,
+                )
+                pvals.append(_lrt(self.loglik_, null_loglik))
+            self.pvals_ = np.array(pvals)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
