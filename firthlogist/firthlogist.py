@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 from scipy.linalg import lapack
 from scipy.special import expit
+from scipy.stats import chi2
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import LabelEncoder
@@ -98,7 +99,6 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         )
 
         self.bse_ = _bse(X, self.coef_)
-
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
             self.coef_ = self.coef_[:-1]
@@ -148,7 +148,6 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
         preds_new = expit(X @ coef_new)
         loglike = _loglikelihood(X, y, preds)
         loglike_new = _loglikelihood(X, y, preds_new)
-
         steps = 0
         while loglike < loglike_new:
             step_size *= 0.5
@@ -165,7 +164,6 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
             return coef_new, -loglike_new, iter
 
         coef += step_size
-
     warning_msg = "Firth logistic regression failed to converge."
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return coef, -loglike_new, max_iter
@@ -197,8 +195,18 @@ def _hat_diag(XW):
 def _bse(X, coefs):
     # se in logistf is diag(object$var) ^ 0.5, where var is the covariance matrix,
     # which is the inverse of the observed fisher information matrix
-    # https://stats.stackexchange.com/questions/68080/basic-question-about-fisher-information-matrix-and-relationship-to-hessian-and-s
+    # https://stats.stackexchange.com/q/68080/343314
     preds = expit(X @ coefs)
     XW = _get_XW(X, preds)
     fisher_info_mtx = XW.T @ XW
     return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
+
+
+def _lrt(full_loglik, X, y):
+    # in logistf: 1-pchisq(2*(fit.full$loglik-fit.i$loglik),1)
+    b, null_loglik, niter = _firth_newton_raphson(X, y, 25, 5, 1000, 0.0001)
+    lr_stat = 2 * (full_loglik - null_loglik)
+    p_value = chi2.sf(lr_stat, df=1)
+    # print(full_loglik, null_loglik, p_value, niter)
+    # print(b)
+    return p_value
