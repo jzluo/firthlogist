@@ -1,6 +1,7 @@
 # firthlogist
 
 [![PyPI](https://img.shields.io/pypi/v/firthlogist.svg)](https://pypi.org/project/firthlogist/)
+[![GitHub](https://img.shields.io/github/license/jzluo/firthlogist)](https://github.com/jzluo/firthlogist/blob/master/LICENSE)
 
 A Python implementation of Logistic Regression with Firth's bias reduction.
 
@@ -14,9 +15,12 @@ firthlogist follows the sklearn API.
 
 ```python
 from firthlogist import FirthLogisticRegression
+
 firth = FirthLogisticRegression()
 firth.fit(X, y)
 coefs = firth.coef_
+pvals = firth.pvals_
+bse = firth.bse_
 ```
 
 ## References

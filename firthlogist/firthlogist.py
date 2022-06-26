@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 from scipy.linalg import lapack
 from scipy.special import expit
+from scipy.stats import chi2
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import LabelEncoder
@@ -30,9 +31,14 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
+    skip_lrt
+        If True, p-values will not be calculated. Calculating the p-values can be
+        expensive since the fitting procedure is repeated for each coefficient.
 
     Attributes
     ----------
+    bse_
+        Standard errors of the coefficients.
     classes_
         A list of the class labels.
     coef_
@@ -41,6 +47,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Fitted intercept. If `fit_intercept = False`, the intercept is set to zero.
     n_iter_
         Number of Newton-Raphson iterations performed.
+    pvals_
+        p-values calculated by penalized likelihood ratio tests.
 
     References
     ----------
@@ -58,12 +66,14 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
+        skip_lrt=False,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
         self.max_halfstep = max_halfstep
         self.tol = tol
         self.fit_intercept = fit_intercept
+        self.skip_lrt = skip_lrt
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -73,6 +83,11 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
             raise ValueError(
                 f"Maximum number of iterations must be positive; "
                 f"got max_iter={self.max_iter}"
+            )
+        if self.max_halfstep < 0:
+            raise ValueError(
+                f"Maximum number of step-halvings must >= 0; "
+                f"got max_halfstep={self.max_iter}"
             )
         if self.tol < 0:
             raise ValueError(
@@ -98,6 +113,23 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         )
 
         self.bse_ = _bse(X, self.coef_)
+
+        # penalized likelihood ratio tests
+        if not self.skip_lrt:
+            pvals = []
+            # mask is 1-indexed because of `if mask` check in _get_XW()
+            for mask in range(1, self.coef_.shape[0] + 1):
+                _, null_loglik, _ = _firth_newton_raphson(
+                    X,
+                    y,
+                    self.max_iter,
+                    self.max_stepsize,
+                    self.max_halfstep,
+                    self.tol,
+                    mask,
+                )
+                pvals.append(_lrt(self.loglik_, null_loglik))
+            self.pvals_ = np.array(pvals)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
@@ -129,16 +161,19 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         return proba
 
 
-def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
+def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=None):
     # see logistf reference manual for explanation of procedure
     coef = np.zeros(X.shape[1])
     for iter in range(1, max_iter + 1):
         preds = expit(X @ coef)
-        XW = _get_XW(X, preds)
+        XW = _get_XW(X, preds, mask)
+
         fisher_info_mtx = XW.T @ XW
         hat = _hat_diag(XW)
         U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
         step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
+        # if mask:
+        #     step_size[mask] = 0
 
         # step-halving
         mx = np.max(np.abs(step_size)) / max_stepsize
@@ -148,7 +183,6 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
         preds_new = expit(X @ coef_new)
         loglike = _loglikelihood(X, y, preds)
         loglike_new = _loglikelihood(X, y, preds_new)
-
         steps = 0
         while loglike < loglike_new:
             step_size *= 0.5
@@ -165,7 +199,6 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol):
             return coef_new, -loglike_new, iter
 
         coef += step_size
-
     warning_msg = "Firth logistic regression failed to converge."
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return coef, -loglike_new, max_iter
@@ -179,9 +212,15 @@ def _loglikelihood(X, y, preds):
     return -1 * (np.sum(y * np.log(preds) + (1 - y) * np.log(1 - preds)) + penalty)
 
 
-def _get_XW(X, preds):
+def _get_XW(X, preds, mask=None):
+    # mask is 1-indexed because 0 == None
     rootW = np.sqrt(preds * (1 - preds))
     XW = rootW[:, np.newaxis] * X
+
+    # is this equivalent??
+    # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
+    if mask:
+        XW[:, mask - 1] = 0
     return XW
 
 
@@ -197,8 +236,15 @@ def _hat_diag(XW):
 def _bse(X, coefs):
     # se in logistf is diag(object$var) ^ 0.5, where var is the covariance matrix,
     # which is the inverse of the observed fisher information matrix
-    # https://stats.stackexchange.com/questions/68080/basic-question-about-fisher-information-matrix-and-relationship-to-hessian-and-s
+    # https://stats.stackexchange.com/q/68080/343314
     preds = expit(X @ coefs)
     XW = _get_XW(X, preds)
     fisher_info_mtx = XW.T @ XW
     return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
+
+
+def _lrt(full_loglik, null_loglik):
+    # in logistf: 1-pchisq(2*(fit.full$loglik-fit.i$loglik),1)
+    lr_stat = 2 * (full_loglik - null_loglik)
+    p_value = chi2.sf(lr_stat, df=1)
+    return p_value
