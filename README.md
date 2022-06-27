@@ -23,6 +23,61 @@ pvals = firth.pvals_
 bse = firth.bse_
 ```
 
+### Parameters
+
+`max_iter`: **_int_, default=25**
+
+&emsp;The maximum number of Newton-Raphson iterations.
+
+`max_halfstep`: **_int_, default=1000**
+
+&emsp;The maximum number of step-halvings in one Newton-Raphson iteration.
+
+`max_stepsize`: **_int_, default=5**
+
+&emsp;The maximum step size - for each coefficient, the step size is forced to
+be less than max_stepsize.
+
+`tol`: **_float_, default=0.0001**
+
+&emsp;Convergence tolerance for stopping.
+
+`fit_intercept`: **_bool_, default=True**
+
+&emsp;Specifies if intercept should be added.
+
+`skip_lrt`: **_bool_, default=False**
+
+&emsp;If True, p-values will not be calculated. Calculating the p-values can
+be expensive since the fitting procedure is repeated for each
+coefficient.
+
+
+### Attributes
+`bse_`
+
+&emsp;Standard errors of the coefficients.
+
+`classes_`
+
+&emsp;A list of the class labels.
+
+`coef_`
+
+&emsp;The coefficients of the features.
+
+`intercept_`
+
+&emsp;Fitted intercept. If `fit_intercept = False`, the intercept is set to zero.
+
+`n_iter_`
+
+&emsp;Number of Newton-Raphson iterations performed.
+
+`pvals_`
+
+&emsp;p-values calculated by penalized likelihood ratio tests.
+
 ## References
 Firth, D (1993). Bias reduction of maximum likelihood estimates.
 *Biometrika* 80, 27–38.
