@@ -45,6 +45,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         The coefficients of the features.
     intercept_
         Fitted intercept. If `fit_intercept = False`, the intercept is set to zero.
+    loglik_
+        Fitted penalized log-likelihood.
     n_iter_
         Number of Newton-Raphson iterations performed.
     pvals_

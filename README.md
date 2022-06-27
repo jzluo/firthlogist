@@ -21,7 +21,6 @@ firth = FirthLogisticRegression()
 firth.fit(X, y)
 coefs = firth.coef_
 pvals = firth.pvals_
-bse = firth.bse_
 ```
 
 ### Parameters
@@ -70,6 +69,10 @@ coefficient.
 `intercept_`
 
 &emsp;Fitted intercept. If `fit_intercept = False`, the intercept is set to zero.
+
+`loglik_`
+
+&emsp;Fitted penalized log-likelihood.
 
 `n_iter_`
 
