@@ -1,4 +1,6 @@
 import warnings
+from copy import deepcopy
+from math import sqrt
 
 import numpy as np
 from scipy.linalg import lapack
@@ -66,16 +68,26 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         max_iter=25,
         max_halfstep=1000,
         max_stepsize=5,
+        pl_max_iter=100,
+        pl_max_halfstep=1000,
+        pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
         skip_lrt=False,
+        skip_ci=False,
+        alpha=0.05,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
         self.max_halfstep = max_halfstep
+        self.pl_max_iter = pl_max_iter
+        self.pl_max_halfstep = pl_max_halfstep
+        self.pl_max_stepsize = pl_max_stepsize
         self.tol = tol
         self.fit_intercept = fit_intercept
         self.skip_lrt = skip_lrt
+        self.skip_ci = skip_ci
+        self.alpha = alpha
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -115,6 +127,25 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         )
 
         self.bse_ = _bse(X, self.coef_)
+
+        if not self.skip_ci:
+            self.ci_ = np.column_stack(
+                [
+                    _profile_likelihood_ci(
+                        X=X,
+                        y=y,
+                        side=side,
+                        fitted_coef=self.coef_,
+                        full_loglik=self.loglik_,
+                        max_iter=self.pl_max_iter,
+                        max_stepsize=self.pl_max_stepsize,
+                        max_halfstep=self.pl_max_halfstep,
+                        tol=self.tol,
+                        alpha=0.05,
+                    )
+                    for side in [-1, 1]
+                ]
+            )
 
         # penalized likelihood ratio tests
         if not self.skip_lrt:
@@ -226,6 +257,12 @@ def _get_XW(X, preds, mask=None):
     return XW
 
 
+def _get_aug_XW(X, preds, hats):
+    rootW = np.sqrt(preds * (1 - preds) * (1 + hats))
+    XW = rootW[:, np.newaxis] * X
+    return XW
+
+
 def _hat_diag(XW):
     # Get diagonal elements of the hat matrix
     # Q = np.linalg.qr(XW, mode="reduced")[0]
@@ -250,3 +287,58 @@ def _lrt(full_loglik, null_loglik):
     lr_stat = 2 * (full_loglik - null_loglik)
     p_value = chi2.sf(lr_stat, df=1)
     return p_value
+
+
+def _profile_likelihood_ci(
+    X,
+    y,
+    side,
+    fitted_coef,
+    full_loglik,
+    max_iter,
+    max_stepsize,
+    max_halfstep,
+    tol,
+    alpha,
+):
+    LL0 = full_loglik - chi2.ppf(1 - alpha, 1) / 2
+    ci = []
+    for coef_idx in range(fitted_coef.shape[0]):
+        coef = deepcopy(fitted_coef)
+        for iter in range(1, max_iter + 1):
+            preds = expit(X @ coef)
+            loglike = -_loglikelihood(X, y, preds)
+            XW = _get_XW(X, preds)
+            hat = _hat_diag(XW)
+            XW = _get_aug_XW(X, preds, hat)  # augmented data using hat diag
+            fisher_info_mtx = XW.T @ XW
+            U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
+            # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L780-L781
+            inv_fisher = np.linalg.pinv(fisher_info_mtx)
+            tmp1x1 = U_star @ np.negative(inv_fisher) @ U_star
+            underRoot = (
+                -2 * ((LL0 - loglike) + 0.5 * tmp1x1) / (inv_fisher[coef_idx, coef_idx])
+            )
+            lambda_ = 0 if underRoot < 0 else side * sqrt(underRoot)
+            U_star[coef_idx] += lambda_
+
+            step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
+            mx = np.max(np.abs(step_size)) / max_stepsize
+            if mx > 1:
+                step_size = step_size / mx  # restrict to max_stepsize
+            coef += step_size
+            loglike_old = loglike.copy()
+
+            for halfs in range(1, max_halfstep + 1):
+                preds = expit(X @ coef)
+                loglike = -_loglikelihood(X, y, preds)
+                if (abs(loglike - LL0) < abs(loglike_old - LL0)) and loglike > LL0:
+                    break
+                step_size *= 0.5
+                coef -= step_size
+            if abs(loglike - LL0) <= tol:
+                ci.append(coef[coef_idx])
+                break
+        if abs(loglike - LL0) > tol:
+            ci.append(np.nan)
+    return ci
