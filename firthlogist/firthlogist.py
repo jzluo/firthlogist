@@ -29,13 +29,26 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     max_stepsize
         The maximum step size - for each coefficient, the step size is forced to
         be less than max_stepsize.
+    pl_max_iter
+        The maximum number of Newton-Raphson iterations for finding profile likelihood
+        confidence intervals.
+    pl_max_halfstep
+        The maximum number of step-halvings in one iteration for finding profile
+        likelihood confidence intervals.
+    pl_max_stepsize
+        The maximum step size while finding PL confidence intervals.
     tol
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
     skip_lrt
         If True, p-values will not be calculated. Calculating the p-values can be
-        expensive since the fitting procedure is repeated for each coefficient.
+        time-consuming since the fitting procedure is repeated for each coefficient.
+    skip_ci
+        If True, confidence intervals will not be calculated. Calculating the confidence
+        intervals via profile likelihoood is time-consuming.
+    alpha
+        Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
 
     Attributes
     ----------
@@ -334,7 +347,7 @@ def _profile_likelihood_ci(
             if mx > 1:
                 step_size = step_size / mx  # restrict to max_stepsize
             coef += step_size
-            loglike_old = loglike.copy()
+            loglike_old = deepcopy(loglike)
 
             for halfs in range(1, max_halfstep + 1):
                 # preds = expit(X @ coef)
