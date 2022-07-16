@@ -289,6 +289,12 @@ def _lrt(full_loglik, null_loglik):
     return p_value
 
 
+def _predict(X, coef):
+    preds = expit(X @ coef)
+    np.clip(preds, a_min=1e-15, a_max=1 - 1e-15, out=preds)
+    return preds
+
+
 def _profile_likelihood_ci(
     X,
     y,
@@ -306,7 +312,8 @@ def _profile_likelihood_ci(
     for coef_idx in range(fitted_coef.shape[0]):
         coef = deepcopy(fitted_coef)
         for iter in range(1, max_iter + 1):
-            preds = expit(X @ coef)
+            # preds = expit(X @ coef)
+            preds = _predict(X, coef)
             loglike = -_loglikelihood(X, y, preds)
             XW = _get_XW(X, preds)
             hat = _hat_diag(XW)
@@ -330,7 +337,8 @@ def _profile_likelihood_ci(
             loglike_old = loglike.copy()
 
             for halfs in range(1, max_halfstep + 1):
-                preds = expit(X @ coef)
+                # preds = expit(X @ coef)
+                preds = _predict(X, coef)
                 loglike = -_loglikelihood(X, y, preds)
                 if (abs(loglike - LL0) < abs(loglike_old - LL0)) and loglike > LL0:
                     break
