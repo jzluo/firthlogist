@@ -245,7 +245,9 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=
             return coef_new, -loglike_new, iter
 
         coef += step_size
-    warning_msg = "Firth logistic regression failed to converge."
+    warning_msg = (
+        "Firth logistic regression failed to converge. Try increasing max_iter."
+    )
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return coef, -loglike_new, max_iter
 
@@ -362,4 +364,10 @@ def _profile_likelihood_ci(
                 break
         if abs(loglike - LL0) > tol:
             ci.append(np.nan)
+            warning_msg = (
+                f"Non-converged PL confidence limits - max number of "
+                f"iterations exceeded for variable x{coef_idx}. Try "
+                f"increasing pl_max_iter."
+            )
+            warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return ci
