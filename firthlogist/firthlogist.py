@@ -1,4 +1,6 @@
 import warnings
+from copy import deepcopy
+from math import sqrt
 
 import numpy as np
 from scipy.linalg import lapack
@@ -27,13 +29,26 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     max_stepsize
         The maximum step size - for each coefficient, the step size is forced to
         be less than max_stepsize.
+    pl_max_iter
+        The maximum number of Newton-Raphson iterations for finding profile likelihood
+        confidence intervals.
+    pl_max_halfstep
+        The maximum number of step-halvings in one iteration for finding profile
+        likelihood confidence intervals.
+    pl_max_stepsize
+        The maximum step size while finding PL confidence intervals.
     tol
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
     skip_lrt
         If True, p-values will not be calculated. Calculating the p-values can be
-        expensive since the fitting procedure is repeated for each coefficient.
+        time-consuming since the fitting procedure is repeated for each coefficient.
+    skip_ci
+        If True, confidence intervals will not be calculated. Calculating the confidence
+        intervals via profile likelihoood is time-consuming.
+    alpha
+        Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
 
     Attributes
     ----------
@@ -41,6 +56,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Standard errors of the coefficients.
     classes_
         A list of the class labels.
+    ci_
+        The fitted profile likelihood confidence intervals.
     coef_
         The coefficients of the features.
     intercept_
@@ -64,18 +81,28 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
         max_iter=25,
-        max_halfstep=1000,
+        max_halfstep=25,
         max_stepsize=5,
+        pl_max_iter=100,
+        pl_max_halfstep=25,
+        pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
         skip_lrt=False,
+        skip_ci=False,
+        alpha=0.05,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
         self.max_halfstep = max_halfstep
+        self.pl_max_iter = pl_max_iter
+        self.pl_max_halfstep = pl_max_halfstep
+        self.pl_max_stepsize = pl_max_stepsize
         self.tol = tol
         self.fit_intercept = fit_intercept
         self.skip_lrt = skip_lrt
+        self.skip_ci = skip_ci
+        self.alpha = alpha
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -115,6 +142,25 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         )
 
         self.bse_ = _bse(X, self.coef_)
+
+        if not self.skip_ci:
+            self.ci_ = np.column_stack(
+                [
+                    _profile_likelihood_ci(
+                        X=X,
+                        y=y,
+                        side=side,
+                        fitted_coef=self.coef_,
+                        full_loglik=self.loglik_,
+                        max_iter=self.pl_max_iter,
+                        max_stepsize=self.pl_max_stepsize,
+                        max_halfstep=self.pl_max_halfstep,
+                        tol=self.tol,
+                        alpha=0.05,
+                    )
+                    for side in [-1, 1]
+                ]
+            )
 
         # penalized likelihood ratio tests
         if not self.skip_lrt:
@@ -201,7 +247,9 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=
             return coef_new, -loglike_new, iter
 
         coef += step_size
-    warning_msg = "Firth logistic regression failed to converge."
+    warning_msg = (
+        "Firth logistic regression failed to converge. Try increasing max_iter."
+    )
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return coef, -loglike_new, max_iter
 
@@ -223,6 +271,12 @@ def _get_XW(X, preds, mask=None):
     # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
     if mask:
         XW[:, mask - 1] = 0
+    return XW
+
+
+def _get_aug_XW(X, preds, hats):
+    rootW = np.sqrt(preds * (1 - preds) * (1 + hats))
+    XW = rootW[:, np.newaxis] * X
     return XW
 
 
@@ -250,3 +304,72 @@ def _lrt(full_loglik, null_loglik):
     lr_stat = 2 * (full_loglik - null_loglik)
     p_value = chi2.sf(lr_stat, df=1)
     return p_value
+
+
+def _predict(X, coef):
+    preds = expit(X @ coef)
+    np.clip(preds, a_min=1e-15, a_max=1 - 1e-15, out=preds)
+    return preds
+
+
+def _profile_likelihood_ci(
+    X,
+    y,
+    side,
+    fitted_coef,
+    full_loglik,
+    max_iter,
+    max_stepsize,
+    max_halfstep,
+    tol,
+    alpha,
+):
+    LL0 = full_loglik - chi2.ppf(1 - alpha, 1) / 2
+    ci = []
+    for coef_idx in range(fitted_coef.shape[0]):
+        coef = deepcopy(fitted_coef)
+        for iter in range(1, max_iter + 1):
+            # preds = expit(X @ coef)
+            preds = _predict(X, coef)
+            loglike = -_loglikelihood(X, y, preds)
+            XW = _get_XW(X, preds)
+            hat = _hat_diag(XW)
+            XW = _get_aug_XW(X, preds, hat)  # augmented data using hat diag
+            fisher_info_mtx = XW.T @ XW
+            U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
+            # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L780-L781
+            inv_fisher = np.linalg.pinv(fisher_info_mtx)
+            tmp1x1 = U_star @ np.negative(inv_fisher) @ U_star
+            underRoot = (
+                -2 * ((LL0 - loglike) + 0.5 * tmp1x1) / (inv_fisher[coef_idx, coef_idx])
+            )
+            lambda_ = 0 if underRoot < 0 else side * sqrt(underRoot)
+            U_star[coef_idx] += lambda_
+
+            step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
+            mx = np.max(np.abs(step_size)) / max_stepsize
+            if mx > 1:
+                step_size = step_size / mx  # restrict to max_stepsize
+            coef += step_size
+            loglike_old = deepcopy(loglike)
+
+            for halfs in range(1, max_halfstep + 1):
+                # preds = expit(X @ coef)
+                preds = _predict(X, coef)
+                loglike = -_loglikelihood(X, y, preds)
+                if (abs(loglike - LL0) < abs(loglike_old - LL0)) and loglike > LL0:
+                    break
+                step_size *= 0.5
+                coef -= step_size
+            if abs(loglike - LL0) <= tol:
+                ci.append(coef[coef_idx])
+                break
+        if abs(loglike - LL0) > tol:
+            ci.append(np.nan)
+            warning_msg = (
+                f"Non-converged PL confidence limits - max number of "
+                f"iterations exceeded for variable x{coef_idx}. Try "
+                f"increasing pl_max_iter."
+            )
+            warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
+    return ci

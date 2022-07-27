@@ -6,7 +6,6 @@
 
 A Python implementation of Logistic Regression with Firth's bias reduction.
 
-WIP!
 
 ## Installation
     pip install firthlogist
@@ -29,13 +28,26 @@ pvals = firth.pvals_
 
 &emsp;The maximum number of Newton-Raphson iterations.
 
-`max_halfstep`: **_int_, default=1000**
+`max_halfstep`: **_int_, default=25**
 
 &emsp;The maximum number of step-halvings in one Newton-Raphson iteration.
 
 `max_stepsize`: **_int_, default=5**
 
 &emsp;The maximum step size - for each coefficient, the step size is forced to
+be less than max_stepsize.
+
+`pl_max_iter`: **_int_, default=100**
+
+&emsp;The maximum number of Newton-Raphson iterations for finding profile likelihood confidence intervals.
+
+`pl_max_halfstep`: **_int_, default=25**
+
+&emsp;The maximum number of step-halvings in one iteration for finding profile likelihood confidence intervals.
+
+`pl_max_stepsize`: **_int_, default=5**
+
+&emsp;The maximum step size while finding PL confidence intervals - for each coefficient, the step size is forced to
 be less than max_stepsize.
 
 `tol`: **_float_, default=0.0001**
@@ -52,6 +64,10 @@ be less than max_stepsize.
 be expensive since the fitting procedure is repeated for each
 coefficient.
 
+`skip_ci`: **_bool_, default=False**
+
+&emsp;If True, confidence intervals will not be calculated. Calculating the confidence intervals via profile likelihoood is time-consuming.
+
 
 ### Attributes
 `bse_`
@@ -61,6 +77,10 @@ coefficient.
 `classes_`
 
 &emsp;A list of the class labels.
+
+`ci_`
+
+&emsp; The fitted profile likelihood confidence intervals.
 
 `coef_`
 
