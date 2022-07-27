@@ -56,6 +56,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Standard errors of the coefficients.
     classes_
         A list of the class labels.
+    ci_
+        The fitted profile likelihood confidence intervals.
     coef_
         The coefficients of the features.
     intercept_
