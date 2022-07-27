@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "firthlogist"
-version = "0.1.2"
+version = "0.2.0"
 description = "Python implementation of Logistic Regression with Firth's bias reduction"
 authors = ["Jon Luo <jzluo@alumni.cmu.edu>"]
 repository = "https://github.com/jzluo/firthlogist"
