@@ -11,6 +11,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
+from tabulate import tabulate
 
 
 class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
@@ -186,6 +187,50 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
             self.intercept_ = 0
 
         return self
+
+    def summary(self, xname=None, tablefmt="simple"):
+        """
+        Prints a summary table.
+
+        Parameters
+        ----------
+        xname
+            Names for the X variables. Default is x1, x2, ... Must match the number of
+            parameters in the model.
+        tablefmt
+            `tabulate` table format for output. Please see the documentation for
+            `tabulate` for options.
+        """
+        check_is_fitted(self)
+        if xname and len(xname) != len(self.coef_):
+            raise ValueError(
+                f"Length of xname ({len(xname)}) does not match the number of "
+                f"parameters in the model ({len(self.coef_)})"
+            )
+
+        if not xname:
+            xname = [f"x{i}" for i in range(1, len(self.coef_) + 1)]
+
+        coef = list(self.coef_)
+        if self.fit_intercept:
+            xname.append("Intercept")
+            coef.append(self.intercept_)
+
+        headers = [
+            "",
+            "coef",
+            "std err",
+            f"[{self.alpha/2}",
+            f"{1-self.alpha/2}]",
+            "p-value",
+        ]
+        table = zip(xname, coef, self.bse_, self.ci_[:, 0], self.ci_[:, 1], self.pvals_)
+        table = tabulate(table, headers, tablefmt=tablefmt)
+        table += "\n\n"
+        table += f"Log-Likelihood: {round(self.loglik_, 4)}\n"
+        table += f"Newton-Raphson iterations: {self.n_iter_}\n"
+        print(table)
+        return
 
     def decision_function(self, X):
         check_is_fitted(self)
