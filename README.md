@@ -11,15 +11,27 @@ A Python implementation of Logistic Regression with Firth's bias reduction.
     pip install firthlogist
 
 ## Usage
-firthlogist follows the sklearn API.
+firthlogist is sklearn compatible and follows the sklearn API.
 
 ```python
-from firthlogist import FirthLogisticRegression
+>>> from firthlogist import FirthLogisticRegression, load_sex2
+>>> fl = FirthLogisticRegression()
+>>> X, y, feature_names = load_sex2()
+>>> fl.fit(X, y)
+FirthLogisticRegression()
+>>> fl.summary(xname=feature_names)
+                 coef    std err     [0.025      0.975]      p-value
+---------  ----------  ---------  ---------  ----------  -----------
+age        -1.10598     0.42366   -1.97379   -0.307427   0.00611139
+oc         -0.0688167   0.443793  -0.941436   0.789202   0.826365
+vic         2.26887     0.548416   1.27304    3.43543    1.67219e-06
+vicl       -2.11141     0.543082  -3.26086   -1.11774    1.23618e-05
+vis        -0.788317    0.417368  -1.60809    0.0151846  0.0534899
+dia         3.09601     1.67501    0.774568   8.03028    0.00484687
+Intercept   0.120254    0.485542  -0.818559   1.07315    0.766584
 
-firth = FirthLogisticRegression()
-firth.fit(X, y)
-coefs = firth.coef_
-pvals = firth.pvals_
+Log-Likelihood: -132.5394
+Newton-Raphson iterations: 8
 ```
 
 ### Parameters

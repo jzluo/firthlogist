@@ -1,1 +1,1 @@
-from .firthlogist import FirthLogisticRegression  # noqa F401
+from .firthlogist import FirthLogisticRegression, load_sex2  # noqa F401
