@@ -1,5 +1,6 @@
 import warnings
 from copy import deepcopy
+from importlib.resources import open_text
 from math import sqrt
 
 import numpy as np
@@ -18,8 +19,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     """
     Logistic regression with Firth's bias reduction method.
 
-    This is based on the implementation in the logistf R package. Please see the
-    logistf reference and Heinze & Schemper (2002) for details about the procedure.
+    This is based on the implementation in the `logistf` R package. Please see the
+    `logistf` reference and Heinze & Schemper (2002) for details about the procedure.
 
     Parameters
     ----------
@@ -418,3 +419,28 @@ def _profile_likelihood_ci(
             )
             warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return ci
+
+
+def load_sex2():
+    """
+    Load the sex2 dataset from `logistf`.
+
+    Returns
+    -------
+    X
+        sex2 data as numpy array
+    y
+        sex2 `case` target column
+    feature_names
+        List of feature names
+
+    References
+    ----------
+    Cytel Inc., (2010) LogXact 9 user manual, Cambridge, MA:Cytel Inc
+    """
+    with open_text("firthlogist.datasets", "sex2.csv") as sex2:
+        X = np.loadtxt(sex2, skiprows=1, delimiter=",")
+    y = X[:, 0]
+    X = X[:, 1:]
+    feature_names = ["age", "oc", "vic", "vicl", "vis", "dia"]
+    return X, y, feature_names
