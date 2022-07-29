@@ -83,10 +83,10 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
         max_iter=25,
-        max_halfstep=25,
+        max_halfstep=0,
         max_stepsize=5,
         pl_max_iter=100,
-        pl_max_halfstep=25,
+        pl_max_halfstep=0,
         pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
@@ -443,4 +443,35 @@ def load_sex2():
     y = X[:, 0]
     X = X[:, 1:]
     feature_names = ["age", "oc", "vic", "vicl", "vis", "dia"]
+    return X, y, feature_names
+
+
+def load_endometrial():
+    """
+    Load the endometrial cancer dataset analyzed in Heinze and Schemper (2002). The data
+    was originally provided by Dr E. Asseryanis from the Vienna University Medical
+    School
+
+    Returns
+    -------
+    X
+        endometrial data as numpy array
+    y
+        endometrial `HG` target column
+    feature_names
+        List of feature names
+
+    References
+    ----------
+    Agresti, A (2015). Foundations of Linear and Generalized Linear Models.
+    Wiley Series in Probability and Statistics.
+
+    Heinze G, Schemper M (2002). A solution to the problem of separation in logistic
+    regression. Statistics in Medicine 21: 2409-2419.
+    """
+    with open_text("firthlogist.datasets", "endometrial.csv") as sex2:
+        X = np.loadtxt(sex2, skiprows=1, delimiter=",")
+    y = X[:, -1]
+    X = X[:, :-1]
+    feature_names = ["NV", "PI", "EH"]
     return X, y, feature_names

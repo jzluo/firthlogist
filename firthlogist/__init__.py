@@ -1,1 +1,5 @@
-from .firthlogist import FirthLogisticRegression, load_sex2  # noqa F401
+from .firthlogist import (  # noqa F401
+    FirthLogisticRegression,
+    load_endometrial,
+    load_sex2,
+)
