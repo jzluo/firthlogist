@@ -83,10 +83,10 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
         max_iter=25,
-        max_halfstep=25,
+        max_halfstep=0,
         max_stepsize=5,
         pl_max_iter=100,
-        pl_max_halfstep=25,
+        pl_max_halfstep=0,
         pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
