@@ -33,33 +33,6 @@ def test_loaders(loader_func, data_shape, target_shape, n_target, xname):
 
 
 @pytest.fixture
-def diabetes():
-    # compare with logistf for diabetes data
-    X = np.loadtxt(TEST_DIR / "diabetes.csv", delimiter=",", skiprows=1)
-    y = X[:, -1]
-    X = X[:, :-1]
-    data = {
-        "X": X,
-        "y": y,
-        "logistf_coef": np.array(
-            [
-                0.1215056439,
-                0.0345600170,
-                -0.0130517652,
-                0.0005825059,
-                -0.0011697657,
-                0.0879587577,
-                0.9286920256,
-                0.0147477743,
-            ]
-        ),
-        "logistf_intercept": -8.2661614602,
-        "logistf_n_iter": 6,
-    }
-    return data
-
-
-@pytest.fixture
 def sex2():
     # compare with logistf for logistf::sex2
     X = np.loadtxt(TEST_DIR / "sex2.csv", delimiter=",", skiprows=1)
@@ -82,7 +55,7 @@ def data(request):
     return request.getfixturevalue(request.param)
 
 
-@pytest.mark.parametrize("data", ["diabetes", "sex2"], indirect=True)
+@pytest.mark.parametrize("data", ["sex2"], indirect=True)
 def test_compare_to_logistf(data):
     firth = FirthLogisticRegression(fit_intercept=True)
     firth.fit(data["X"], data["y"])
