@@ -1,13 +1,9 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 from firthlogist import FirthLogisticRegression, load_endometrial, load_sex2
-
-TEST_DIR = Path(__file__).parent
 
 
 @parametrize_with_checks([FirthLogisticRegression()])
