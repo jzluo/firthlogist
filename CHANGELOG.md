@@ -6,16 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Tests for `load_sex2()` and `load_endometrial()`.
-- Test for profile likelihood confidence intervals.
+- Tests for `load_sex2()` and `load_endometrial()` ([#9](https://github.com/jzluo/firthlogist/pull/9)).
+- Test for profile likelihood confidence intervals ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 ### Removed
-- Diabetes and sex2 csv files removed from testing dir.
+- Diabetes and sex2 csv files removed from testing dir ([#9](([#9](https://github.com/jzluo/firthlogist/pull/9))).
 
 ## [0.3.1] - 2022-07-29
 ### Added
-- Added the endometrial cancer dataset analyzed in Heinze and Schemper, 2002. Load using `load_endometrial()`
+- Added the endometrial cancer dataset analyzed in Heinze and Schemper, 2002. Load using `load_endometrial()` ([#8](https://github.com/jzluo/firthlogist/pull/8)).
 ### Changed
-- Disabled step-halving by default to follow `logistf`, which disabled it in version 1.24.1 for some reason.
+- Disabled step-halving by default to follow `logistf`, which disabled it in version 1.24.1 for some reason ([#8](https://github.com/jzluo/firthlogist/pull/8)).
 
 ## [0.3.0] - 2022-07-28
 v0.3.0 adds a couple of convenience features.
