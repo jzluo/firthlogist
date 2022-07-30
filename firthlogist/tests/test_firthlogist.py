@@ -33,11 +33,35 @@ def test_loaders(loader_func, data_shape, target_shape, n_target, xname):
 
 
 @pytest.fixture
+def endometrial():
+    X, y, _ = load_endometrial()
+    data = {
+        "X": X,
+        "y": y,
+        "logistf_coef": np.array(
+            [
+                2.92927330,
+                -0.03475175,
+                -2.60416387,
+            ]
+        ),
+        "logistf_intercept": 3.77455951,
+        "logistf_ci": np.array(
+            [
+                [0.6097244, 7.85463171],
+                [-0.1244587, 0.04045547],
+                [-4.3651832, -1.23272106],
+                [1.0825371, 7.20928050],
+            ]
+        ),
+    }
+    return data
+
+
+@pytest.fixture
 def sex2():
     # compare with logistf for logistf::sex2
-    X = np.loadtxt(TEST_DIR / "sex2.csv", delimiter=",", skiprows=1)
-    y = X[:, 0]
-    X = X[:, 1:]
+    X, y, _ = load_sex2()
     data = {
         "X": X,
         "y": y,
@@ -45,7 +69,17 @@ def sex2():
             [-1.10598131, -0.06881673, 2.26887464, -2.11140817, -0.78831694, 3.09601166]
         ),
         "logistf_intercept": 0.12025405,
-        "logistf_n_iter": 8,
+        "logistf_ci": np.array(
+            [
+                [-1.9737884, -0.30742514],
+                [-0.9414363, 0.78920202],
+                [1.2730216, 3.43543273],
+                [-3.2608611, -1.11773495],
+                [-1.6080879, 0.01518468],
+                [0.7745682, 8.03029352],
+                [-0.8185591, 1.07315122],
+            ]
+        ),
     }
     return data
 
@@ -61,4 +95,4 @@ def test_compare_to_logistf(data):
     firth.fit(data["X"], data["y"])
     assert_allclose(firth.coef_, data["logistf_coef"], rtol=1e-05)
     assert_allclose(firth.intercept_, data["logistf_intercept"], rtol=1e-05)
-    assert firth.n_iter_ == data["logistf_n_iter"]
+    assert_allclose(firth.ci_, data["logistf_ci"], rtol=1e-05)
