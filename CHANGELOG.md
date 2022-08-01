@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `skip_lrt` option is now `skip_pvals`.
 ### Removed
-- Diabetes and sex2 csv files removed from testing dir ([#9](([#9](https://github.com/jzluo/firthlogist/pull/9))).
+- Diabetes and sex2 csv files removed from testing dir ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 
 ## [0.3.1] - 2022-07-29
 ### Added
