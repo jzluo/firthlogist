@@ -170,6 +170,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
                 )
             else:
                 self.ci_ = _wald_ci(self.coef_, self.bse_, self.alpha)
+        else:
+            self.ci_ = np.full((self.coef_.shape[0], 2), np.nan)
 
         # penalized likelihood ratio tests
         if not self.skip_pvals:
@@ -191,6 +193,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
 
             else:
                 self.pvals_ = _wald_test(self.coef_, self.bse_)
+        else:
+            self.pvals_ = np.full(self.coef_.shape[0], np.nan)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
