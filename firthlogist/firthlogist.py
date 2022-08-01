@@ -43,7 +43,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
-    skip_lrt
+    skip_pvals
         If True, p-values will not be calculated. Calculating the p-values can be
         time-consuming since the fitting procedure is repeated for each coefficient.
     skip_ci
@@ -51,6 +51,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         intervals via profile likelihoood is time-consuming.
     alpha
         Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
+    wald
+        If True, uses Wald method to calculate p-values and confidence intervals.
 
     Attributes
     ----------
@@ -90,7 +92,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
-        skip_lrt=False,
+        skip_pvals=False,
         skip_ci=False,
         alpha=0.05,
         wald=False,
@@ -103,7 +105,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.pl_max_stepsize = pl_max_stepsize
         self.tol = tol
         self.fit_intercept = fit_intercept
-        self.skip_lrt = skip_lrt
+        self.skip_pvals = skip_pvals
         self.skip_ci = skip_ci
         self.alpha = alpha
         self.wald = wald
@@ -170,7 +172,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
                 self.ci_ = _wald_ci(self.coef_, self.bse_, self.alpha)
 
         # penalized likelihood ratio tests
-        if not self.skip_lrt:
+        if not self.skip_pvals:
             if not self.wald:
                 pvals = []
                 # mask is 1-indexed because of `if mask` check in _get_XW()

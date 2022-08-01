@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Option to use Wald method for computing p-values and confidence intervals instead of LRT and profile likelihood. Set `wald=True` to use.
 - Tests for `load_sex2()` and `load_endometrial()` ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 - Test for profile likelihood confidence intervals ([#9](https://github.com/jzluo/firthlogist/pull/9)).
+### Changed
+- `skip_lrt` option is now `skip_pvals`.
 ### Removed
 - Diabetes and sex2 csv files removed from testing dir ([#9](([#9](https://github.com/jzluo/firthlogist/pull/9))).
 
