@@ -171,20 +171,24 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
 
         # penalized likelihood ratio tests
         if not self.skip_lrt:
-            pvals = []
-            # mask is 1-indexed because of `if mask` check in _get_XW()
-            for mask in range(1, self.coef_.shape[0] + 1):
-                _, null_loglik, _ = _firth_newton_raphson(
-                    X,
-                    y,
-                    self.max_iter,
-                    self.max_stepsize,
-                    self.max_halfstep,
-                    self.tol,
-                    mask,
-                )
-                pvals.append(_lrt(self.loglik_, null_loglik))
-            self.pvals_ = np.array(pvals)
+            if not self.wald:
+                pvals = []
+                # mask is 1-indexed because of `if mask` check in _get_XW()
+                for mask in range(1, self.coef_.shape[0] + 1):
+                    _, null_loglik, _ = _firth_newton_raphson(
+                        X,
+                        y,
+                        self.max_iter,
+                        self.max_stepsize,
+                        self.max_halfstep,
+                        self.tol,
+                        mask,
+                    )
+                    pvals.append(_lrt(self.loglik_, null_loglik))
+                self.pvals_ = np.array(pvals)
+
+            else:
+                self.pvals_ = _wald_test(self.coef_, self.bse_)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
@@ -430,6 +434,11 @@ def _wald_ci(coef, bse, alpha):
     lower_ci = coef + norm.ppf(alpha / 2) * bse
     upper_ci = coef + norm.ppf(1 - alpha / 2) * bse
     return np.column_stack([lower_ci, upper_ci])
+
+
+def _wald_test(coef, bse):
+    # 1 - pchisq((beta^2/vars), 1), in our case bse = vars^0.5
+    return chi2.sf(np.square(coef) / np.square(bse), 1)
 
 
 def load_sex2():
