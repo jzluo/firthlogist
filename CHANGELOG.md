@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test for profile likelihood confidence intervals ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 ### Changed
 - `skip_lrt` option is now `skip_pvals`.
+### Fixed
+- `.summary()` no longer breaks if skipping confidence interval or p-value calculation.
 ### Removed
 - Diabetes and sex2 csv files removed from testing dir ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 
