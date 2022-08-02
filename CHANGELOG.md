@@ -5,14 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.0] - 2022-08-01
+
 ### Added
-- Option to use Wald method for computing p-values and confidence intervals instead of LRT and profile likelihood. Set `wald=True` to use.
+- Option to use Wald method for computing p-values and confidence intervals instead of LRT and profile likelihood. Set `wald=True` to use ([#11](https://github.com/jzluo/firthlogist/pull/11)).
 - Tests for `load_sex2()` and `load_endometrial()` ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 - Test for profile likelihood confidence intervals ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 ### Changed
-- `skip_lrt` option is now `skip_pvals`.
+- `skip_lrt` option is now `skip_pvals` ([#11](https://github.com/jzluo/firthlogist/pull/11)).
 ### Fixed
-- `.summary()` no longer breaks if skipping confidence interval or p-value calculation.
+- `.summary()` no longer breaks if skipping confidence interval or p-value calculation ([#11](https://github.com/jzluo/firthlogist/pull/11)).
 ### Removed
 - Diabetes and sex2 csv files removed from testing dir ([#9](https://github.com/jzluo/firthlogist/pull/9)).
 
