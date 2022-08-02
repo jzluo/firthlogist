@@ -45,7 +45,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Specifies if intercept should be added.
     skip_pvals
         If True, p-values will not be calculated. Calculating the p-values can be
-        time-consuming since the fitting procedure is repeated for each coefficient.
+        time-consuming if `wald=False` since the fitting procedure is repeated for each
+        coefficient.
     skip_ci
         If True, confidence intervals will not be calculated. Calculating the confidence
         intervals via profile likelihoood is time-consuming.

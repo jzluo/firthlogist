@@ -70,16 +70,23 @@ be less than max_stepsize.
 
 &emsp;Specifies if intercept should be added.
 
-`skip_lrt`: **_bool_, default=False**
+`skip_pvals`: **_bool_, default=False**
 
 &emsp;If True, p-values will not be calculated. Calculating the p-values can
-be expensive since the fitting procedure is repeated for each
+be expensive if `wald=False` since the fitting procedure is repeated for each
 coefficient.
 
 `skip_ci`: **_bool_, default=False**
 
 &emsp;If True, confidence intervals will not be calculated. Calculating the confidence intervals via profile likelihoood is time-consuming.
 
+`alpha`: **_float_, default=0.05**
+
+&emsp;Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
+
+`wald`: **_bool_, default=False**
+
+&emsp;If True, uses Wald method to calculate p-values and confidence intervals.
 
 ### Attributes
 `bse_`
