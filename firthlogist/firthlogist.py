@@ -6,7 +6,7 @@ from math import sqrt
 import numpy as np
 from scipy.linalg import lapack
 from scipy.special import expit
-from scipy.stats import chi2
+from scipy.stats import chi2, norm
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import LabelEncoder
@@ -43,14 +43,17 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Convergence tolerance for stopping.
     fit_intercept
         Specifies if intercept should be added.
-    skip_lrt
+    skip_pvals
         If True, p-values will not be calculated. Calculating the p-values can be
-        time-consuming since the fitting procedure is repeated for each coefficient.
+        time-consuming if `wald=False` since the fitting procedure is repeated for each
+        coefficient.
     skip_ci
         If True, confidence intervals will not be calculated. Calculating the confidence
         intervals via profile likelihoood is time-consuming.
     alpha
         Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
+    wald
+        If True, uses Wald method to calculate p-values and confidence intervals.
 
     Attributes
     ----------
@@ -90,9 +93,10 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         pl_max_stepsize=5,
         tol=0.0001,
         fit_intercept=True,
-        skip_lrt=False,
+        skip_pvals=False,
         skip_ci=False,
         alpha=0.05,
+        wald=False,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
@@ -102,9 +106,10 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.pl_max_stepsize = pl_max_stepsize
         self.tol = tol
         self.fit_intercept = fit_intercept
-        self.skip_lrt = skip_lrt
+        self.skip_pvals = skip_pvals
         self.skip_ci = skip_ci
         self.alpha = alpha
+        self.wald = wald
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -146,40 +151,51 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.bse_ = _bse(X, self.coef_)
 
         if not self.skip_ci:
-            self.ci_ = np.column_stack(
-                [
-                    _profile_likelihood_ci(
-                        X=X,
-                        y=y,
-                        side=side,
-                        fitted_coef=self.coef_,
-                        full_loglik=self.loglik_,
-                        max_iter=self.pl_max_iter,
-                        max_stepsize=self.pl_max_stepsize,
-                        max_halfstep=self.pl_max_halfstep,
-                        tol=self.tol,
-                        alpha=0.05,
-                    )
-                    for side in [-1, 1]
-                ]
-            )
+            if not self.wald:
+                self.ci_ = np.column_stack(
+                    [
+                        _profile_likelihood_ci(
+                            X=X,
+                            y=y,
+                            side=side,
+                            fitted_coef=self.coef_,
+                            full_loglik=self.loglik_,
+                            max_iter=self.pl_max_iter,
+                            max_stepsize=self.pl_max_stepsize,
+                            max_halfstep=self.pl_max_halfstep,
+                            tol=self.tol,
+                            alpha=0.05,
+                        )
+                        for side in [-1, 1]
+                    ]
+                )
+            else:
+                self.ci_ = _wald_ci(self.coef_, self.bse_, self.alpha)
+        else:
+            self.ci_ = np.full((self.coef_.shape[0], 2), np.nan)
 
         # penalized likelihood ratio tests
-        if not self.skip_lrt:
-            pvals = []
-            # mask is 1-indexed because of `if mask` check in _get_XW()
-            for mask in range(1, self.coef_.shape[0] + 1):
-                _, null_loglik, _ = _firth_newton_raphson(
-                    X,
-                    y,
-                    self.max_iter,
-                    self.max_stepsize,
-                    self.max_halfstep,
-                    self.tol,
-                    mask,
-                )
-                pvals.append(_lrt(self.loglik_, null_loglik))
-            self.pvals_ = np.array(pvals)
+        if not self.skip_pvals:
+            if not self.wald:
+                pvals = []
+                # mask is 1-indexed because of `if mask` check in _get_XW()
+                for mask in range(1, self.coef_.shape[0] + 1):
+                    _, null_loglik, _ = _firth_newton_raphson(
+                        X,
+                        y,
+                        self.max_iter,
+                        self.max_stepsize,
+                        self.max_halfstep,
+                        self.tol,
+                        mask,
+                    )
+                    pvals.append(_lrt(self.loglik_, null_loglik))
+                self.pvals_ = np.array(pvals)
+
+            else:
+                self.pvals_ = _wald_test(self.coef_, self.bse_)
+        else:
+            self.pvals_ = np.full(self.coef_.shape[0], np.nan)
 
         if self.fit_intercept:
             self.intercept_ = self.coef_[-1]
@@ -419,6 +435,17 @@ def _profile_likelihood_ci(
             )
             warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
     return ci
+
+
+def _wald_ci(coef, bse, alpha):
+    lower_ci = coef + norm.ppf(alpha / 2) * bse
+    upper_ci = coef + norm.ppf(1 - alpha / 2) * bse
+    return np.column_stack([lower_ci, upper_ci])
+
+
+def _wald_test(coef, bse):
+    # 1 - pchisq((beta^2/vars), 1), in our case bse = vars^0.5
+    return chi2.sf(np.square(coef) / np.square(bse), 1)
 
 
 def load_sex2():
