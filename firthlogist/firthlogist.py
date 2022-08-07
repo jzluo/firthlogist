@@ -244,6 +244,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         table += f"Log-Likelihood: {round(self.loglik_, 4)}\n"
         table += f"Newton-Raphson iterations: {self.n_iter_}\n"
         print(table)
+        if self.fit_intercept:
+            xname.pop()
         return
 
     def decision_function(self, X):

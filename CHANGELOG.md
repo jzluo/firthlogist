@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.0] - 2022-08-07
 ### Added
 - `test_vars` option to specify the variable(s) for which to calculate PL confidence intervals and p-values.
+### Fixed
+- Fixed bug where `.summary(xname)` would append `Intercept` to `xname` such that repeated calls would break.
 
 ## [0.4.0] - 2022-08-01
 ### Added
