@@ -106,4 +106,23 @@ def test_ci_singlevaridx(data):
             [np.nan, np.nan],
         ]
     )
+    pvals = np.array([np.nan, np.nan, 2.50418343e-05, np.nan])
     assert_allclose(firth.ci_, ci)
+    assert_allclose(firth.pvals_, pvals)
+
+
+@pytest.mark.parametrize("data", ["endometrial"], indirect=True)
+def test_ci_multivaridx(data):
+    firth = FirthLogisticRegression(test_vars=[1, 2])
+    firth.fit(data["X"], data["y"])
+    ci = np.array(
+        [
+            [np.nan, np.nan],
+            [-0.12445872, 0.04045547],
+            [-4.36518284, -1.23272106],
+            [np.nan, np.nan],
+        ]
+    )
+    pvals = np.array([np.nan, 3.76021507e-01, 2.50418343e-05, np.nan])
+    assert_allclose(firth.ci_, ci)
+    assert_allclose(firth.pvals_, pvals)

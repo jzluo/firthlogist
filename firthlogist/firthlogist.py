@@ -56,7 +56,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         If True, uses Wald method to calculate p-values and confidence intervals.
     test_vars
         Index or list of indices of the variables for which to calculate confidence
-        intervals and p-values. If None, calculate for all variables.
+        intervals and p-values. If None, calculate for all variables. This option has
+        no effect if wald=True.
 
     Attributes
     ----------
@@ -177,20 +178,16 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         # penalized likelihood ratio tests
         if not self.skip_pvals:
             if not self.wald:
-                pvals = []
-                # mask is 1-indexed because of `if mask` check in _get_XW()
-                for mask in range(1, self.coef_.shape[0] + 1):
-                    _, null_loglik, _ = _firth_newton_raphson(
-                        X,
-                        y,
-                        self.max_iter,
-                        self.max_stepsize,
-                        self.max_halfstep,
-                        self.tol,
-                        mask,
-                    )
-                    pvals.append(_lrt(self.loglik_, null_loglik))
-                self.pvals_ = np.array(pvals)
+                self.pvals_ = _penalized_lrt(
+                    self.loglik_,
+                    X,
+                    y,
+                    self.max_iter,
+                    self.max_stepsize,
+                    self.max_halfstep,
+                    self.tol,
+                    self.test_vars,
+                )
 
             else:
                 self.pvals_ = _wald_test(self.coef_, self.bse_)
@@ -331,8 +328,8 @@ def _get_XW(X, preds, mask=None):
 
     # is this equivalent??
     # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
-    if mask:
-        XW[:, mask - 1] = 0
+    if mask is not None:
+        XW[:, mask] = 0
     return XW
 
 
@@ -359,6 +356,36 @@ def _bse(X, coefs):
     XW = _get_XW(X, preds)
     fisher_info_mtx = XW.T @ XW
     return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
+
+
+def _penalized_lrt(
+    full_loglik, X, y, max_iter, max_stepsize, max_halfstep, tol, test_vars
+):
+    if test_vars is None:
+        test_var_indices = range(X.shape[1])
+    elif isinstance(test_vars, int):  # single index
+        test_var_indices = [test_vars]
+    else:  # list, tuple, or set of indices
+        test_var_indices = sorted(test_vars)
+
+    pvals = []
+    for mask in test_var_indices:
+        _, null_loglik, _ = _firth_newton_raphson(
+            X,
+            y,
+            max_iter,
+            max_stepsize,
+            max_halfstep,
+            tol,
+            mask,
+        )
+        pvals.append(_lrt(full_loglik, null_loglik))
+    if len(pvals) < X.shape[1]:
+        pval_array = np.full(X.shape[1], np.nan)
+        for idx, test_var_idx in enumerate(test_var_indices):
+            pval_array[test_var_idx] = pvals[idx]
+        return pval_array
+    return np.array(pvals)
 
 
 def _lrt(full_loglik, null_loglik):
@@ -454,9 +481,9 @@ def _profile_likelihood_ci(
         ci = np.full([fitted_coef.shape[0], 2], np.nan)
         for idx, test_var_idx in enumerate(test_var_indices):
             ci[test_var_idx] = bounds[idx]
-            return ci
-    else:
-        return bounds
+        return ci
+
+    return bounds
 
 
 def _wald_ci(coef, bse, alpha):
