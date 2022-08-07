@@ -92,3 +92,18 @@ def test_compare_to_logistf(data):
     assert_allclose(firth.coef_, data["logistf_coef"], rtol=1e-05)
     assert_allclose(firth.intercept_, data["logistf_intercept"], rtol=1e-05)
     assert_allclose(firth.ci_, data["logistf_ci"], rtol=1e-05)
+
+
+@pytest.mark.parametrize("data", ["endometrial"], indirect=True)
+def test_ci_singlevaridx(data):
+    firth = FirthLogisticRegression(test_vars=2)
+    firth.fit(data["X"], data["y"])
+    ci = np.array(
+        [
+            [np.nan, np.nan],
+            [np.nan, np.nan],
+            [-4.36518284, -1.23272106],
+            [np.nan, np.nan],
+        ]
+    )
+    assert_allclose(firth.ci_, ci)

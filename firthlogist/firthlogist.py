@@ -54,6 +54,9 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
     wald
         If True, uses Wald method to calculate p-values and confidence intervals.
+    test_vars
+        Index or list of indices of the variables for which to calculate confidence
+        intervals and p-values. If None, calculate for all variables.
 
     Attributes
     ----------
@@ -97,6 +100,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         skip_ci=False,
         alpha=0.05,
         wald=False,
+        test_vars=None,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
@@ -110,6 +114,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.skip_ci = skip_ci
         self.alpha = alpha
         self.wald = wald
+        self.test_vars = test_vars
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -161,7 +166,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
                     max_stepsize=self.pl_max_stepsize,
                     max_halfstep=self.pl_max_halfstep,
                     tol=self.tol,
-                    alpha=0.05,
+                    alpha=self.alpha,
+                    test_vars=self.test_vars,
                 )
             else:
                 self.ci_ = _wald_ci(self.coef_, self.bse_, self.alpha)
@@ -378,12 +384,20 @@ def _profile_likelihood_ci(
     max_halfstep,
     tol,
     alpha,
+    test_vars,
 ):
     LL0 = full_loglik - chi2.ppf(1 - alpha, 1) / 2
     lower_bound = []
     upper_bound = []
+    if test_vars is None:
+        test_var_indices = range(fitted_coef.shape[0])
+    elif isinstance(test_vars, int):  # single index
+        test_var_indices = [test_vars]
+    else:  # list, tuple, or set of indices
+        test_var_indices = sorted(test_vars)
     for side in [-1, 1]:
-        for coef_idx in range(fitted_coef.shape[0]):
+        # for coef_idx in range(fitted_coef.shape[0]):
+        for coef_idx in test_var_indices:
             coef = deepcopy(fitted_coef)
             for iter in range(1, max_iter + 1):
                 preds = _predict(X, coef)
@@ -435,7 +449,14 @@ def _profile_likelihood_ci(
                     f"increasing pl_max_iter."
                 )
                 warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-    return np.column_stack([lower_bound, upper_bound])
+    bounds = np.column_stack([lower_bound, upper_bound])
+    if len(lower_bound) < fitted_coef.shape[0]:
+        ci = np.full([fitted_coef.shape[0], 2], np.nan)
+        for idx, test_var_idx in enumerate(test_var_indices):
+            ci[test_var_idx] = bounds[idx]
+            return ci
+    else:
+        return bounds
 
 
 def _wald_ci(coef, bse, alpha):
