@@ -88,6 +88,11 @@ coefficient.
 
 &emsp;If True, uses Wald method to calculate p-values and confidence intervals.
 
+`test_vars`: **Union[int, List[int]], default=None**
+
+&emsp;Index or list of indices of the variables for which to calculate confidence intervals and p-values. If None, calculate for all variables. This option has no effect if `wald=True`.
+
+
 ### Attributes
 `bse_`
 
