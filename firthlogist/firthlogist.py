@@ -54,6 +54,10 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Significance level (confidence interval = 1-alpha). 0.05 as default for 95% CI.
     wald
         If True, uses Wald method to calculate p-values and confidence intervals.
+    test_vars
+        Index or list of indices of the variables for which to calculate confidence
+        intervals and p-values. If None, calculate for all variables. This option has
+        no effect if wald=True.
 
     Attributes
     ----------
@@ -97,6 +101,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         skip_ci=False,
         alpha=0.05,
         wald=False,
+        test_vars=None,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
@@ -110,6 +115,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         self.skip_ci = skip_ci
         self.alpha = alpha
         self.wald = wald
+        self.test_vars = test_vars
 
     def _more_tags(self):
         return {"binary_only": True}
@@ -152,22 +158,17 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
 
         if not self.skip_ci:
             if not self.wald:
-                self.ci_ = np.column_stack(
-                    [
-                        _profile_likelihood_ci(
-                            X=X,
-                            y=y,
-                            side=side,
-                            fitted_coef=self.coef_,
-                            full_loglik=self.loglik_,
-                            max_iter=self.pl_max_iter,
-                            max_stepsize=self.pl_max_stepsize,
-                            max_halfstep=self.pl_max_halfstep,
-                            tol=self.tol,
-                            alpha=0.05,
-                        )
-                        for side in [-1, 1]
-                    ]
+                self.ci_ = _profile_likelihood_ci(
+                    X=X,
+                    y=y,
+                    fitted_coef=self.coef_,
+                    full_loglik=self.loglik_,
+                    max_iter=self.pl_max_iter,
+                    max_stepsize=self.pl_max_stepsize,
+                    max_halfstep=self.pl_max_halfstep,
+                    tol=self.tol,
+                    alpha=self.alpha,
+                    test_vars=self.test_vars,
                 )
             else:
                 self.ci_ = _wald_ci(self.coef_, self.bse_, self.alpha)
@@ -177,20 +178,16 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         # penalized likelihood ratio tests
         if not self.skip_pvals:
             if not self.wald:
-                pvals = []
-                # mask is 1-indexed because of `if mask` check in _get_XW()
-                for mask in range(1, self.coef_.shape[0] + 1):
-                    _, null_loglik, _ = _firth_newton_raphson(
-                        X,
-                        y,
-                        self.max_iter,
-                        self.max_stepsize,
-                        self.max_halfstep,
-                        self.tol,
-                        mask,
-                    )
-                    pvals.append(_lrt(self.loglik_, null_loglik))
-                self.pvals_ = np.array(pvals)
+                self.pvals_ = _penalized_lrt(
+                    self.loglik_,
+                    X,
+                    y,
+                    self.max_iter,
+                    self.max_stepsize,
+                    self.max_halfstep,
+                    self.tol,
+                    self.test_vars,
+                )
 
             else:
                 self.pvals_ = _wald_test(self.coef_, self.bse_)
@@ -247,6 +244,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         table += f"Log-Likelihood: {round(self.loglik_, 4)}\n"
         table += f"Newton-Raphson iterations: {self.n_iter_}\n"
         print(table)
+        if self.fit_intercept:
+            xname.pop()
         return
 
     def decision_function(self, X):
@@ -331,8 +330,8 @@ def _get_XW(X, preds, mask=None):
 
     # is this equivalent??
     # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L150-L159
-    if mask:
-        XW[:, mask - 1] = 0
+    if mask is not None:
+        XW[:, mask] = 0
     return XW
 
 
@@ -361,6 +360,36 @@ def _bse(X, coefs):
     return np.sqrt(np.diag(np.linalg.pinv(fisher_info_mtx)))
 
 
+def _penalized_lrt(
+    full_loglik, X, y, max_iter, max_stepsize, max_halfstep, tol, test_vars
+):
+    if test_vars is None:
+        test_var_indices = range(X.shape[1])
+    elif isinstance(test_vars, int):  # single index
+        test_var_indices = [test_vars]
+    else:  # list, tuple, or set of indices
+        test_var_indices = sorted(test_vars)
+
+    pvals = []
+    for mask in test_var_indices:
+        _, null_loglik, _ = _firth_newton_raphson(
+            X,
+            y,
+            max_iter,
+            max_stepsize,
+            max_halfstep,
+            tol,
+            mask,
+        )
+        pvals.append(_lrt(full_loglik, null_loglik))
+    if len(pvals) < X.shape[1]:
+        pval_array = np.full(X.shape[1], np.nan)
+        for idx, test_var_idx in enumerate(test_var_indices):
+            pval_array[test_var_idx] = pvals[idx]
+        return pval_array
+    return np.array(pvals)
+
+
 def _lrt(full_loglik, null_loglik):
     # in logistf: 1-pchisq(2*(fit.full$loglik-fit.i$loglik),1)
     lr_stat = 2 * (full_loglik - null_loglik)
@@ -377,7 +406,6 @@ def _predict(X, coef):
 def _profile_likelihood_ci(
     X,
     y,
-    side,
     fitted_coef,
     full_loglik,
     max_iter,
@@ -385,56 +413,79 @@ def _profile_likelihood_ci(
     max_halfstep,
     tol,
     alpha,
+    test_vars,
 ):
     LL0 = full_loglik - chi2.ppf(1 - alpha, 1) / 2
-    ci = []
-    for coef_idx in range(fitted_coef.shape[0]):
-        coef = deepcopy(fitted_coef)
-        for iter in range(1, max_iter + 1):
-            # preds = expit(X @ coef)
-            preds = _predict(X, coef)
-            loglike = -_loglikelihood(X, y, preds)
-            XW = _get_XW(X, preds)
-            hat = _hat_diag(XW)
-            XW = _get_aug_XW(X, preds, hat)  # augmented data using hat diag
-            fisher_info_mtx = XW.T @ XW
-            U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
-            # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L780-L781
-            inv_fisher = np.linalg.pinv(fisher_info_mtx)
-            tmp1x1 = U_star @ np.negative(inv_fisher) @ U_star
-            underRoot = (
-                -2 * ((LL0 - loglike) + 0.5 * tmp1x1) / (inv_fisher[coef_idx, coef_idx])
-            )
-            lambda_ = 0 if underRoot < 0 else side * sqrt(underRoot)
-            U_star[coef_idx] += lambda_
-
-            step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
-            mx = np.max(np.abs(step_size)) / max_stepsize
-            if mx > 1:
-                step_size = step_size / mx  # restrict to max_stepsize
-            coef += step_size
-            loglike_old = deepcopy(loglike)
-
-            for halfs in range(1, max_halfstep + 1):
-                # preds = expit(X @ coef)
+    lower_bound = []
+    upper_bound = []
+    if test_vars is None:
+        test_var_indices = range(fitted_coef.shape[0])
+    elif isinstance(test_vars, int):  # single index
+        test_var_indices = [test_vars]
+    else:  # list, tuple, or set of indices
+        test_var_indices = sorted(test_vars)
+    for side in [-1, 1]:
+        # for coef_idx in range(fitted_coef.shape[0]):
+        for coef_idx in test_var_indices:
+            coef = deepcopy(fitted_coef)
+            for iter in range(1, max_iter + 1):
                 preds = _predict(X, coef)
                 loglike = -_loglikelihood(X, y, preds)
-                if (abs(loglike - LL0) < abs(loglike_old - LL0)) and loglike > LL0:
+                XW = _get_XW(X, preds)
+                hat = _hat_diag(XW)
+                XW = _get_aug_XW(X, preds, hat)  # augmented data using hat diag
+                fisher_info_mtx = XW.T @ XW
+                U_star = np.matmul(X.T, y - preds + np.multiply(hat, 0.5 - preds))
+                # https://github.com/georgheinze/logistf/blob/master/src/logistf.c#L780-L781
+                inv_fisher = np.linalg.pinv(fisher_info_mtx)
+                tmp1x1 = U_star @ np.negative(inv_fisher) @ U_star
+                underRoot = (
+                    -2
+                    * ((LL0 - loglike) + 0.5 * tmp1x1)
+                    / (inv_fisher[coef_idx, coef_idx])
+                )
+                lambda_ = 0 if underRoot < 0 else side * sqrt(underRoot)
+                U_star[coef_idx] += lambda_
+
+                step_size = np.linalg.lstsq(fisher_info_mtx, U_star, rcond=None)[0]
+                mx = np.max(np.abs(step_size)) / max_stepsize
+                if mx > 1:
+                    step_size = step_size / mx  # restrict to max_stepsize
+                coef += step_size
+                loglike_old = deepcopy(loglike)
+
+                for halfs in range(1, max_halfstep + 1):
+                    preds = _predict(X, coef)
+                    loglike = -_loglikelihood(X, y, preds)
+                    if (abs(loglike - LL0) < abs(loglike_old - LL0)) and loglike > LL0:
+                        break
+                    step_size *= 0.5
+                    coef -= step_size
+                if abs(loglike - LL0) <= tol:
+                    if side == -1:
+                        lower_bound.append(coef[coef_idx])
+                    else:
+                        upper_bound.append(coef[coef_idx])
                     break
-                step_size *= 0.5
-                coef -= step_size
-            if abs(loglike - LL0) <= tol:
-                ci.append(coef[coef_idx])
-                break
-        if abs(loglike - LL0) > tol:
-            ci.append(np.nan)
-            warning_msg = (
-                f"Non-converged PL confidence limits - max number of "
-                f"iterations exceeded for variable x{coef_idx}. Try "
-                f"increasing pl_max_iter."
-            )
-            warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-    return ci
+            if abs(loglike - LL0) > tol:
+                if side == -1:
+                    lower_bound.append(np.nan)
+                else:
+                    upper_bound.append(np.nan)
+                warning_msg = (
+                    f"Non-converged PL confidence limits - max number of "
+                    f"iterations exceeded for variable x{coef_idx}. Try "
+                    f"increasing pl_max_iter."
+                )
+                warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
+    bounds = np.column_stack([lower_bound, upper_bound])
+    if len(lower_bound) < fitted_coef.shape[0]:
+        ci = np.full([fitted_coef.shape[0], 2], np.nan)
+        for idx, test_var_idx in enumerate(test_var_indices):
+            ci[test_var_idx] = bounds[idx]
+        return ci
+
+    return bounds
 
 
 def _wald_ci(coef, bse, alpha):

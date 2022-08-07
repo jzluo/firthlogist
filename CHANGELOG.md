@@ -6,8 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0] - 2022-08-01
+## [0.5.0] - 2022-08-07
+### Added
+- `test_vars` option to specify the variable(s) for which to calculate PL confidence intervals and p-values.
+### Fixed
+- Fixed bug where `.summary(xname)` would append `Intercept` to `xname` such that repeated calls would break.
 
+## [0.4.0] - 2022-08-01
 ### Added
 - Option to use Wald method for computing p-values and confidence intervals instead of LRT and profile likelihood. Set `wald=True` to use ([#11](https://github.com/jzluo/firthlogist/pull/11)).
 - Tests for `load_sex2()` and `load_endometrial()` ([#9](https://github.com/jzluo/firthlogist/pull/9)).
