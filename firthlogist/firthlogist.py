@@ -343,9 +343,8 @@ def _get_aug_XW(X, preds, hats):
 
 def _hat_diag(XW):
     # Get diagonal elements of the hat matrix
-    # Q = np.linalg.qr(XW, mode="reduced")[0]
-    qr, tau, _, _ = lapack.dgeqrf(XW)
-    Q, _, _ = lapack.dorgqr(qr, tau)
+    qr, tau, _, _ = lapack.dgeqrf(XW, overwrite_a=True)
+    Q, _, _ = lapack.dorgqr(qr, tau, overwrite_a=True)
     hat = np.einsum("ij,ij->i", Q, Q)
     return hat
 
