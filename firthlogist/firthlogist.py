@@ -78,6 +78,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Number of Newton-Raphson iterations performed.
     pvals_
         p-values calculated by penalized likelihood ratio tests.
+    has_converged_
+        information whether the Newton-Raphson iterations converged
 
     References
     ----------
@@ -89,20 +91,20 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(
-        self,
-        max_iter=25,
-        max_halfstep=0,
-        max_stepsize=5,
-        pl_max_iter=100,
-        pl_max_halfstep=0,
-        pl_max_stepsize=5,
-        tol=0.0001,
-        fit_intercept=True,
-        skip_pvals=False,
-        skip_ci=False,
-        alpha=0.05,
-        wald=False,
-        test_vars=None,
+            self,
+            max_iter=25,
+            max_halfstep=0,
+            max_stepsize=5,
+            pl_max_iter=100,
+            pl_max_halfstep=0,
+            pl_max_stepsize=5,
+            tol=0.0001,
+            fit_intercept=True,
+            skip_pvals=False,
+            skip_ci=False,
+            alpha=0.05,
+            wald=False,
+            test_vars=None,
     ):
         self.max_iter = max_iter
         self.max_stepsize = max_stepsize
@@ -151,7 +153,7 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         if self.fit_intercept:
             X = np.hstack((X, np.ones((X.shape[0], 1))))
 
-        self.coef_, self.loglik_, self.n_iter_ = _firth_newton_raphson(
+        self.coef_, self.loglik_, self.n_iter_, self.has_converged_ = _firth_newton_raphson(
             X, y, self.max_iter, self.max_stepsize, self.max_halfstep, self.tol
         )
 
@@ -235,8 +237,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
             "",
             "coef",
             "std err",
-            f"[{self.alpha/2}",
-            f"{1-self.alpha/2}]",
+            f"[{self.alpha / 2}",
+            f"{1 - self.alpha / 2}]",
             "p-value",
         ]
         table = zip(xname, coef, self.bse_, self.ci_[:, 0], self.ci_[:, 1], self.pvals_)
@@ -303,17 +305,17 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=
             if steps == max_halfstep:
                 warning_msg = "Step-halving failed to converge."
                 warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-                return coef_new, -loglike_new, iter
+                return coef_new, -loglike_new, iter, False
 
         if iter > 1 and np.linalg.norm(coef_new - coef) < tol:
-            return coef_new, -loglike_new, iter
+            return coef_new, -loglike_new, iter, True
 
         coef += step_size
     warning_msg = (
         "Firth logistic regression failed to converge. Try increasing max_iter."
     )
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-    return coef, -loglike_new, max_iter
+    return coef, -loglike_new, max_iter, False
 
 
 def _loglikelihood(X, y, preds):
@@ -363,7 +365,7 @@ def _bse(X, coefs):
 
 
 def _penalized_lrt(
-    full_loglik, X, y, max_iter, max_stepsize, max_halfstep, tol, test_vars
+        full_loglik, X, y, max_iter, max_stepsize, max_halfstep, tol, test_vars
 ):
     if test_vars is None:
         test_var_indices = range(X.shape[1])
@@ -374,7 +376,7 @@ def _penalized_lrt(
 
     pvals = []
     for mask in test_var_indices:
-        _, null_loglik, _ = _firth_newton_raphson(
+        _, null_loglik, _, _ = _firth_newton_raphson(
             X,
             y,
             max_iter,
@@ -406,16 +408,16 @@ def _predict(X, coef):
 
 
 def _profile_likelihood_ci(
-    X,
-    y,
-    fitted_coef,
-    full_loglik,
-    max_iter,
-    max_stepsize,
-    max_halfstep,
-    tol,
-    alpha,
-    test_vars,
+        X,
+        y,
+        fitted_coef,
+        full_loglik,
+        max_iter,
+        max_stepsize,
+        max_halfstep,
+        tol,
+        alpha,
+        test_vars,
 ):
     LL0 = full_loglik - chi2.ppf(1 - alpha, 1) / 2
     lower_bound = []
@@ -442,9 +444,9 @@ def _profile_likelihood_ci(
                 inv_fisher = np.linalg.pinv(fisher_info_mtx)
                 tmp1x1 = U_star @ np.negative(inv_fisher) @ U_star
                 underRoot = (
-                    -2
-                    * ((LL0 - loglike) + 0.5 * tmp1x1)
-                    / (inv_fisher[coef_idx, coef_idx])
+                        -2
+                        * ((LL0 - loglike) + 0.5 * tmp1x1)
+                        / (inv_fisher[coef_idx, coef_idx])
                 )
                 lambda_ = 0 if underRoot < 0 else side * sqrt(underRoot)
                 U_star[coef_idx] += lambda_
