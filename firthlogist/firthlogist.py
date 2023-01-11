@@ -10,6 +10,7 @@ from scipy.stats import chi2, norm
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.extmath import fast_logdet
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
 from tabulate import tabulate
@@ -77,6 +78,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         Number of Newton-Raphson iterations performed.
     pvals_
         p-values calculated by penalized likelihood ratio tests.
+    has_converged_
+        information whether the Newton-Raphson iterations converged
 
     References
     ----------
@@ -150,7 +153,12 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
         if self.fit_intercept:
             X = np.hstack((X, np.ones((X.shape[0], 1))))
 
-        self.coef_, self.loglik_, self.n_iter_ = _firth_newton_raphson(
+        (
+            self.coef_,
+            self.loglik_,
+            self.n_iter_,
+            self.has_converged_,
+        ) = _firth_newton_raphson(
             X, y, self.max_iter, self.max_stepsize, self.max_halfstep, self.tol
         )
 
@@ -234,8 +242,8 @@ class FirthLogisticRegression(BaseEstimator, ClassifierMixin):
             "",
             "coef",
             "std err",
-            f"[{self.alpha/2}",
-            f"{1-self.alpha/2}]",
+            f"[{self.alpha / 2}",
+            f"{1 - self.alpha / 2}]",
             "p-value",
         ]
         table = zip(xname, coef, self.bse_, self.ci_[:, 0], self.ci_[:, 1], self.pvals_)
@@ -302,24 +310,26 @@ def _firth_newton_raphson(X, y, max_iter, max_stepsize, max_halfstep, tol, mask=
             if steps == max_halfstep:
                 warning_msg = "Step-halving failed to converge."
                 warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-                return coef_new, -loglike_new, iter
+                return coef_new, -loglike_new, iter, False
 
         if iter > 1 and np.linalg.norm(coef_new - coef) < tol:
-            return coef_new, -loglike_new, iter
+            return coef_new, -loglike_new, iter, True
 
         coef += step_size
     warning_msg = (
         "Firth logistic regression failed to converge. Try increasing max_iter."
     )
     warnings.warn(warning_msg, ConvergenceWarning, stacklevel=2)
-    return coef, -loglike_new, max_iter
+    return coef, -loglike_new, max_iter, False
 
 
 def _loglikelihood(X, y, preds):
     # penalized log-likelihood
     XW = _get_XW(X, preds)
     fisher_info_mtx = XW.T @ XW
-    penalty = 0.5 * np.log(np.linalg.det(fisher_info_mtx))
+    penalty = 0.5 * fast_logdet(fisher_info_mtx)
+    if not np.isfinite(penalty):
+        penalty = 0
     return -1 * (np.sum(y * np.log(preds) + (1 - y) * np.log(1 - preds)) + penalty)
 
 
@@ -371,7 +381,7 @@ def _penalized_lrt(
 
     pvals = []
     for mask in test_var_indices:
-        _, null_loglik, _ = _firth_newton_raphson(
+        _, null_loglik, _, _ = _firth_newton_raphson(
             X,
             y,
             max_iter,
