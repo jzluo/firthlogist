@@ -4,6 +4,10 @@
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/firthlogist)
 [![GitHub](https://img.shields.io/github/license/jzluo/firthlogist)](https://github.com/jzluo/firthlogist/blob/master/LICENSE)
 
+⚠️ **This package is not being maintained.** Please follow [firthmodels](https://github.com/jzluo/firthmodels), a complete rewrite with a cleaner architecture and support for additional features.
+
+---
+
 A Python implementation of Logistic Regression with Firth's bias reduction.
 
 
